@@ -12,7 +12,7 @@ enum Event<I> {
     Tick,
 }
 
-const DAS_TIMEOUT: Duration = Duration::from_millis(200);
+const KEY_TIMEOUT: Duration = Duration::from_millis(200);
 const TICK_TIMEOUT: Duration = Duration::from_millis(1000);
 // const LOCK_TIMEOUT: Duration = Duration::from_millis(500);
 
@@ -25,7 +25,7 @@ fn main() {
     // key input thread
     thread::spawn(move || loop {
         // HACK: why timeout here is DAS_TIMEOUT?
-        if event::poll(DAS_TIMEOUT).expect("poll error") {
+        if event::poll(KEY_TIMEOUT).expect("poll error") {
             if let event::Event::Key(key) = event::read().expect("can't read key events") {
                 control_tx
                     .send(Event::Input(key))

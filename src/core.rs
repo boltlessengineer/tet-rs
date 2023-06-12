@@ -295,10 +295,13 @@ impl Game {
     pub fn swap_hold(&mut self) {
         if self.can_hold {
             let prev_type = self.player.mino_type;
-            self.player = Mino::new(self.hold.unwrap_or(self.bags.next()), &self.board);
+            if let Some(hold) = self.hold {
+                self.player = Mino::new(hold, &self.board);
+            } else {
+                self.player = Mino::new(self.bags.next(), &self.board);
+            }
             self.hold = Some(prev_type);
             self.can_hold = false
         }
     }
 }
-
