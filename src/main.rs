@@ -1,7 +1,11 @@
 mod core;
 mod tui;
 
-use std::{sync::mpsc, thread, time::Duration};
+use std::{
+    sync::mpsc,
+    thread,
+    time::{Duration, Instant},
+};
 
 use crossterm::event::{self, KeyCode};
 
@@ -10,11 +14,12 @@ use crate::core::{Direction, Game};
 enum Event<I> {
     Input(I),
     Tick,
+    FixTimeout,
 }
 
 const KEY_TIMEOUT: Duration = Duration::from_millis(200);
 const TICK_TIMEOUT: Duration = Duration::from_millis(1000);
-// const LOCK_TIMEOUT: Duration = Duration::from_millis(500);
+const LOCK_TIMEOUT: Duration = Duration::from_millis(500);
 
 fn main() {
     let mut ui = tui::UI::new().expect("Can't initialize TUI");
@@ -42,6 +47,7 @@ fn main() {
 
     let mut game = Game::new();
 
+    let mut last_touch = Some(Instant::now());
     loop {
         ui.render(&game).unwrap();
         if let Ok(ev) = rx.recv() {
@@ -51,32 +57,58 @@ fn main() {
                         break;
                     }
                     KeyCode::Char(' ') => {
+                        // TODO: don't harddrop after few frames from softdrop
                         game.player
                             .shift(0, game.player.ghost_y - game.player.y, &game.board);
                         game.lock_player();
+                        last_touch = None;
                     }
                     KeyCode::Char('y') => {
                         game.swap_hold();
                     }
                     KeyCode::Char('h') => {
                         game.player.shift(-1, 0, &game.board);
+                        last_touch = None;
                     }
                     KeyCode::Char('j') => {
                         game.player.shift(0, -1, &game.board);
                     }
                     KeyCode::Char('l') => {
                         game.player.shift(1, 0, &game.board);
+                        last_touch = None;
                     }
                     KeyCode::Char('a') => {
                         game.player.rotate(Direction::L, &game.board);
+                        last_touch = None;
                     }
                     KeyCode::Char('d') => {
                         game.player.rotate(Direction::R, &game.board);
+                        last_touch = None;
                     }
                     _ => {}
                 },
                 Event::Tick => {
                     game.player.shift(0, -1, &game.board);
+                }
+                Event::FixTimeout => {
+                    if let Some(lt) = last_touch {
+                        let current_time = Instant::now();
+                        let duration_since_touch = current_time.duration_since(lt);
+                        if duration_since_touch.as_millis() > LOCK_TIMEOUT.as_millis() {
+                            game.lock_player();
+                            last_touch = Some(Instant::now());
+                        }
+                    }
+                }
+            }
+            if game.player.y == game.player.ghost_y {
+                let lock_tx = tx.clone();
+                thread::spawn(move || {
+                    thread::sleep(LOCK_TIMEOUT);
+                    lock_tx.send(Event::FixTimeout).expect("thread error");
+                });
+                if last_touch.is_none() {
+                    last_touch = Some(Instant::now());
                 }
             }
         }
