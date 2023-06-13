@@ -19,7 +19,7 @@ enum Event<I> {
 
 const KEY_TIMEOUT: Duration = Duration::from_millis(200);
 const TICK_TIMEOUT: Duration = Duration::from_millis(1000);
-const LOCK_TIMEOUT: Duration = Duration::from_millis(500);
+const LOCK_DELAY: Duration = Duration::from_millis(500);
 
 fn main() {
     let mut ui = tui::UI::new().expect("Can't initialize TUI");
@@ -47,7 +47,6 @@ fn main() {
 
     let mut game = Game::new();
 
-    let mut last_touch = Some(Instant::now());
     loop {
         ui.render(&game).unwrap();
         if let Ok(ev) = rx.recv() {
@@ -61,29 +60,28 @@ fn main() {
                         game.player
                             .shift(0, game.player.ghost_y - game.player.y, &game.board);
                         game.lock_player();
-                        last_touch = None;
                     }
                     KeyCode::Char('y') => {
                         game.swap_hold();
                     }
                     KeyCode::Char('h') => {
-                        game.player.shift(-1, 0, &game.board);
-                        last_touch = None;
+                        let did_move = game.player.shift(-1, 0, &game.board);
+                        game.check_lock(did_move);
                     }
                     KeyCode::Char('j') => {
                         game.player.shift(0, -1, &game.board);
                     }
                     KeyCode::Char('l') => {
-                        game.player.shift(1, 0, &game.board);
-                        last_touch = None;
+                        let did_move = game.player.shift(1, 0, &game.board);
+                        game.check_lock(did_move);
                     }
                     KeyCode::Char('a') => {
-                        game.player.rotate(Direction::L, &game.board);
-                        last_touch = None;
+                        let did_move = game.player.rotate(Direction::L, &game.board);
+                        game.check_lock(did_move);
                     }
                     KeyCode::Char('d') => {
-                        game.player.rotate(Direction::R, &game.board);
-                        last_touch = None;
+                        let did_move = game.player.rotate(Direction::R, &game.board);
+                        game.check_lock(did_move);
                     }
                     _ => {}
                 },
@@ -91,12 +89,12 @@ fn main() {
                     game.player.shift(0, -1, &game.board);
                 }
                 Event::FixTimeout => {
-                    if let Some(lt) = last_touch {
+                    if let Some(lt) = game.last_touch {
                         let current_time = Instant::now();
                         let duration_since_touch = current_time.duration_since(lt);
-                        if duration_since_touch.as_millis() > LOCK_TIMEOUT.as_millis() {
+                        if duration_since_touch.as_millis() >= LOCK_DELAY.as_millis() {
                             game.lock_player();
-                            last_touch = Some(Instant::now());
+                            game.move_after_touch = 0;
                         }
                     }
                 }
@@ -104,11 +102,11 @@ fn main() {
             if game.player.y == game.player.ghost_y {
                 let lock_tx = tx.clone();
                 thread::spawn(move || {
-                    thread::sleep(LOCK_TIMEOUT);
+                    thread::sleep(LOCK_DELAY);
                     lock_tx.send(Event::FixTimeout).expect("thread error");
                 });
-                if last_touch.is_none() {
-                    last_touch = Some(Instant::now());
+                if game.last_touch.is_none() {
+                    game.last_touch = Some(Instant::now());
                 }
             }
         }

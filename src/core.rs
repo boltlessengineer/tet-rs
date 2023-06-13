@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use rand::seq::SliceRandom;
 
 pub const GRID_WIDTH: u16 = 10;
@@ -173,7 +175,9 @@ impl Mino {
             if !t.collides(board) {
                 *self = t;
                 self.update_ghost_y(board);
-                return true;
+                // retrun false when mino is O
+                let is_o_mino = matches!(self.mino_type, MinoType::O);
+                return !is_o_mino;
             }
         }
         return false;
@@ -253,6 +257,8 @@ pub struct Game {
     pub hold: Option<MinoType>,
     pub bags: Bag,
     can_hold: bool,
+    pub last_touch: Option<Instant>,
+    pub move_after_touch: u8,
 }
 
 impl Game {
@@ -266,6 +272,8 @@ impl Game {
             hold: None,
             bags: bag,
             can_hold: true,
+            last_touch: None,
+            move_after_touch: 0,
         }
     }
 
@@ -277,6 +285,7 @@ impl Game {
         self.clear_lines();
         self.player = Mino::new(self.bags.next(), &self.board);
         self.can_hold = true;
+        self.last_touch = None;
     }
 
     pub fn clear_lines(&mut self) {
@@ -302,6 +311,17 @@ impl Game {
             }
             self.hold = Some(prev_type);
             self.can_hold = false
+        }
+    }
+
+    pub fn check_lock(&mut self, did_move: bool) {
+        if did_move && self.last_touch.is_some() && (self.move_after_touch < 15) {
+            if self.player.y == self.player.ghost_y {
+                self.move_after_touch += 1;
+            } else {
+                self.move_after_touch = 0;
+            }
+            self.last_touch = None;
         }
     }
 }
