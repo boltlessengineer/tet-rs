@@ -1,7 +1,10 @@
 use std::io;
 
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{
+        DisableMouseCapture, EnableMouseCapture, KeyboardEnhancementFlags,
+        PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -94,7 +97,10 @@ impl UI {
         let mut stdout = io::stdout();
         stdout
             .execute(EnterAlternateScreen)?
-            .execute(EnableMouseCapture)?;
+            .execute(EnableMouseCapture)?
+            .execute(PushKeyboardEnhancementFlags(
+                KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+            ))?;
         let backend = CrosstermBackend::new(stdout);
         return Ok(UI {
             terminal: Terminal::new(backend)?,
@@ -153,7 +159,8 @@ impl UI {
         self.terminal
             .backend_mut()
             .execute(LeaveAlternateScreen)?
-            .execute(DisableMouseCapture)?;
+            .execute(DisableMouseCapture)?
+            .execute(PopKeyboardEnhancementFlags)?;
         return Ok(());
     }
 }

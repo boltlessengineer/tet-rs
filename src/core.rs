@@ -34,7 +34,31 @@ static O_OFFSETS: [[Pos; 5]; 4] = [
     [(-1, -1), (0, 0), (0, 0), (0, 0), (0, 0)],
     [(-1, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
 ];
+static Gravity: [f64; 20] = [
+    1.00000, // 1
+    0.79300, // 2
+    0.61780, // 3
+    0.47273, // 4
+    0.35520, // 5
+    0.26200, // 6
+    0.18968, // 7
+    0.13473, // 8
+    0.09388, // 9
+    0.06415, // 10
+    0.04298, // 11
+    0.02822, // 12
+    0.01815, // 13
+    0.01144, // 14
+    0.00706, // 15
+    0.00426, // 16
+    0.00252, // 17
+    0.00146, // 18
+    0.00082, // 19
+    0.00046, // 20
+];
 
+// TODO: rename to Up, Right, Down, Left
+// also use on das_shift(&self, dir: Direction, game: &Game)
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     /// Zero : Initial state
@@ -140,6 +164,34 @@ impl Mino {
             return true;
         }
         return false;
+    }
+
+    // FIX: das should not work like this!!!
+    // think if ARR != 0
+    pub fn das_shift(&mut self, direction: Direction, board: &Board) -> bool {
+        match direction {
+            // HACK: something better than unreachable
+            Direction::Z => unreachable!(),
+            Direction::R => {
+                let prev_x = self.x;
+                self.x += 1;
+                while !self.collides(board) {
+                    self.x += 1;
+                }
+                self.x -= 1;
+                return prev_x != self.x;
+            }
+            Direction::D => self.shift(0, self.ghost_y - self.y, board),
+            Direction::L => {
+                let prev_x = self.x;
+                self.x -= 1;
+                while !self.collides(board) {
+                    self.x -= 1;
+                }
+                self.x += 1;
+                return prev_x != self.x;
+            }
+        }
     }
 
     pub fn update_ghost_y(&mut self, board: &Board) {
@@ -259,6 +311,9 @@ pub struct Game {
     can_hold: bool,
     pub last_touch: Option<Instant>,
     pub move_after_touch: u8,
+    // FIX: das_charge should be a value
+    pub left_das_charge: bool,
+    pub right_das_charge: bool,
 }
 
 impl Game {
@@ -274,6 +329,8 @@ impl Game {
             can_hold: true,
             last_touch: None,
             move_after_touch: 0,
+            left_das_charge: false,
+            right_das_charge: false,
         }
     }
 
