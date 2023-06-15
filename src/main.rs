@@ -1,3 +1,4 @@
+mod control;
 mod core;
 mod tui;
 
@@ -7,18 +8,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossterm::event::{self, KeyCode, KeyEventKind};
+use control::handle_controls;
 
 use crate::core::{Direction, Game};
 
-enum Event {
+pub enum Event {
     Control(ControlKind),
     Tick,
     ArrTick,
     FixTimeout,
 }
 
-enum ControlKind {
+pub enum ControlKind {
     Quit,
 
     Left,
@@ -33,6 +34,7 @@ enum ControlKind {
 
     Rotate,
     RotateCC,
+    Rotate180,
 
     HardDrop,
     Hold,
@@ -51,80 +53,7 @@ fn main() {
     let control_tx = tx.clone();
     let tick_tx = tx.clone();
     // key input thread
-    thread::spawn(move || {
-        let das_scan_left = Arc::new(Mutex::new(false));
-        let das_scan_right = Arc::new(Mutex::new(false));
-        loop {
-            if event::poll(KEY_TIMEOUT).expect("poll error") {
-                if let event::Event::Key(key) = event::read().expect("can't read key events") {
-                    let control = if key.kind == KeyEventKind::Press {
-                        match key.code {
-                            KeyCode::Char('q') => Some(ControlKind::Quit),
-                            KeyCode::Char('j') => Some(ControlKind::SoftDrop),
-                            KeyCode::Char(' ') => Some(ControlKind::HardDrop),
-                            KeyCode::Char('y') => Some(ControlKind::Hold),
-                            KeyCode::Char('a') => Some(ControlKind::RotateCC),
-                            KeyCode::Char('d') => Some(ControlKind::Rotate),
-                            KeyCode::Char('h') => {
-                                let is_scanning = Arc::clone(&das_scan_left);
-                                if !*is_scanning.lock().unwrap() {
-                                    *is_scanning.lock().unwrap() = true;
-                                    let tx_clone = control_tx.clone();
-                                    thread::spawn(move || {
-                                        thread::sleep(DAS_TIMEOUT);
-                                        if *is_scanning.lock().unwrap() {
-                                            tx_clone
-                                                .send(Event::Control(ControlKind::LeftDasStart))
-                                                .unwrap();
-                                        }
-                                    });
-                                }
-                                Some(ControlKind::Left)
-                            }
-                            KeyCode::Char('l') => {
-                                let is_scanning = Arc::clone(&das_scan_right);
-                                if !*is_scanning.lock().unwrap() {
-                                    *is_scanning.lock().unwrap() = true;
-                                    let tx_clone = control_tx.clone();
-                                    thread::spawn(move || {
-                                        thread::sleep(DAS_TIMEOUT);
-                                        if *is_scanning.lock().unwrap() {
-                                            tx_clone
-                                                .send(Event::Control(ControlKind::RightDasStart))
-                                                .unwrap();
-                                        }
-                                    });
-                                }
-                                Some(ControlKind::Right)
-                            }
-                            _ => None,
-                        }
-                    } else if key.kind == KeyEventKind::Release {
-                        match key.code {
-                            KeyCode::Char('h') => {
-                                let is_scanning = Arc::clone(&das_scan_left);
-                                *is_scanning.lock().unwrap() = false;
-                                Some(ControlKind::LeftDasEnd)
-                            }
-                            KeyCode::Char('l') => {
-                                let is_scanning = Arc::clone(&das_scan_right);
-                                *is_scanning.lock().unwrap() = false;
-                                Some(ControlKind::RightDasEnd)
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
-                    if let Some(e) = control {
-                        control_tx
-                            .send(Event::Control(e))
-                            .expect("can't send key events")
-                    }
-                }
-            }
-        }
-    });
+    thread::spawn(move || handle_controls(control_tx));
 
     // tick thread
     thread::spawn(move || loop {
@@ -174,6 +103,10 @@ fn main() {
                         let did_move = game.player.rotate(Direction::R, &game.board);
                         game.check_lock(did_move);
                     }
+                    ControlKind::Rotate180 => {
+                        let did_move = game.player.rotate(Direction::D, &game.board);
+                        game.check_lock(did_move);
+                    }
                     ControlKind::LeftDasStart => {
                         if !*left_charged.lock().unwrap() {
                             *left_charged.lock().unwrap() = true;
@@ -205,7 +138,7 @@ fn main() {
                     ControlKind::LeftDasEnd => {
                         *left_charged.lock().unwrap() = false;
                         if *right_charged.lock().unwrap() {
-                            // re-send LeftDasStart to restart ARR tick
+                            // re-send RightDasStart to restart ARR tick
                             let tx_clone = tx.clone();
                             tx_clone
                                 .send(Event::Control(ControlKind::RightDasStart))
