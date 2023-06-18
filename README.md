@@ -1,4 +1,4 @@
-# Tetries made with Rust
+# Tetris made with Rust
 
 ## TODOs
 
