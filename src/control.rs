@@ -1,20 +1,23 @@
 use std::{
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
+    time::Duration,
 };
 
-use crossterm::event::{self, KeyCode, KeyEventKind};
+use crossterm::event;
 
-use crate::{ControlKind, Event, DAS_TIMEOUT, KEY_TIMEOUT};
+use crate::{ControlKind, DAS_TIMEOUT};
 
-pub fn handle_controls(tx: Sender<Event>) {
+const KEY_TIMEOUT: Duration = Duration::from_secs(100);
+
+pub fn handle_controls(tx: Sender<ControlKind>) {
     let das_scan_left = Arc::new(Mutex::new(false));
     let das_scan_right = Arc::new(Mutex::new(false));
     loop {
         if event::poll(KEY_TIMEOUT).expect("poll error") {
             if let event::Event::Key(key) = event::read().unwrap() {
-                use KeyCode::*;
-                use KeyEventKind::*;
+                use event::KeyCode::*;
+                use event::KeyEventKind::*;
                 let control = match (key.kind, key.code) {
                     (Press, Char('q')) => Some(ControlKind::Quit),
                     (Press, Char('j')) => Some(ControlKind::SoftDrop),
@@ -42,15 +45,14 @@ pub fn handle_controls(tx: Sender<Event>) {
                     _ => None,
                 };
                 if let Some(control) = control {
-                    tx.send(Event::Control(control))
-                        .expect("can't send key events")
+                    tx.send(control).expect("can't send key events")
                 }
             }
         }
     }
 }
 
-fn das_timeout(tx: &Sender<Event>, is_scanning: &Arc<Mutex<bool>>, control: ControlKind) {
+fn das_timeout(tx: &Sender<ControlKind>, is_scanning: &Arc<Mutex<bool>>, control: ControlKind) {
     let is_scanning = Arc::clone(&is_scanning);
     if !*is_scanning.lock().unwrap() {
         *is_scanning.lock().unwrap() = true;
@@ -58,7 +60,7 @@ fn das_timeout(tx: &Sender<Event>, is_scanning: &Arc<Mutex<bool>>, control: Cont
         thread::spawn(move || {
             thread::sleep(DAS_TIMEOUT);
             if *is_scanning.lock().unwrap() {
-                tx_clone.send(Event::Control(control)).unwrap();
+                tx_clone.send(control).unwrap();
             }
         });
     }

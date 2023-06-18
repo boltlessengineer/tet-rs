@@ -181,7 +181,7 @@ impl Mino {
                 self.x -= 1;
                 return prev_x != self.x;
             }
-            Direction::D => self.shift(0, self.ghost_y - self.y, board),
+            Direction::D => unreachable!(),
             Direction::L => {
                 let prev_x = self.x;
                 self.x -= 1;
@@ -310,10 +310,15 @@ pub struct Game {
     pub bags: Bag,
     can_hold: bool,
     pub last_touch: Option<Instant>,
-    pub move_after_touch: u8,
-    // FIX: das_charge should be a value
-    pub left_das_charge: bool,
-    pub right_das_charge: bool,
+    /// last instant when user moved Mino
+    pub last_move: Option<Instant>,
+    pub canceled_drop: u8,
+    /// Some() when das is charging
+    /// value is initial time when DAS charging is started
+    pub das_charge_left: Option<Instant>,
+    /// Some() when das is charging
+    /// value is initial time when DAS charging is started
+    pub das_charge_right: Option<Instant>,
 }
 
 impl Game {
@@ -328,14 +333,18 @@ impl Game {
             bags: bag,
             can_hold: true,
             last_touch: None,
-            move_after_touch: 0,
-            left_das_charge: false,
-            right_das_charge: false,
+            last_move: None,
+            canceled_drop: 0,
+            das_charge_left: None,
+            das_charge_right: None,
         }
     }
 
     /// merge player to board and set new player
+    /// this will hard-drop Mino if Mino isn't at bottom
     pub fn lock_player(&mut self) {
+        self.player
+            .shift(0, self.player.ghost_y - self.player.y, &self.board);
         self.player.get_cells().into_iter().for_each(|(x, y)| {
             self.board.grid[y as usize][x as usize] = Cell::Mino(self.player.mino_type);
         });
@@ -343,9 +352,10 @@ impl Game {
         self.player = Mino::new(self.bags.next(), &self.board);
         self.can_hold = true;
         self.last_touch = None;
+        self.canceled_drop = 0;
     }
 
-    pub fn clear_lines(&mut self) {
+    fn clear_lines(&mut self) {
         let rows_to_clear: Vec<usize> = (0..GRID_HEIGHT as usize)
             .filter(|&row| self.board.grid[row].iter().all(|cell| !cell.is_empty()))
             .collect();
@@ -371,14 +381,13 @@ impl Game {
         }
     }
 
-    pub fn check_lock(&mut self, did_move: bool) {
-        if did_move && self.last_touch.is_some() && (self.move_after_touch < 15) {
-            if self.player.y == self.player.ghost_y {
-                self.move_after_touch += 1;
-            } else {
-                self.move_after_touch = 0;
-            }
-            self.last_touch = None;
-        }
+    // HACK: wait... two similar same name function for two separate structs?
+    pub fn shift(&mut self, x: i8, y: i8) {
+        self.player.shift(x, y, &self.board);
+    }
+
+    // FIX: auto lock isn't working for 15+ movements
+    pub fn rotate(&mut self, direction: Direction) {
+        self.player.rotate(direction, &self.board);
     }
 }
