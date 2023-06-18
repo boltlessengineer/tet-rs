@@ -40,6 +40,7 @@ pub enum ControlKind {
     Hold,
 }
 
+const LOCK_DELAY: Duration = Duration::from_millis(500);
 const ARR_TIMEOUT: Duration = Duration::from_millis(5);
 const DAS_TIMEOUT: Duration = Duration::from_millis(122);
 
@@ -93,6 +94,17 @@ fn main() {
             if gravity_frame_count > GRAVITY_FRAMES {
                 game.shift(0, -1);
                 gravity_frame_count = 0;
+            }
+
+            // lock-delay & infinite placement lock down
+            if game.player.is_bottom() {
+                if let Some(touch_time) = game.last_touch {
+                    if current_time - touch_time > LOCK_DELAY {
+                        game.lock_player();
+                    } else if game.canceled_drop >= 15 {
+                        game.lock_player();
+                    }
+                }
             }
 
             ui.render(&game).unwrap();

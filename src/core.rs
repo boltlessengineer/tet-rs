@@ -234,6 +234,10 @@ impl Mino {
         }
         return false;
     }
+
+    pub fn is_bottom(&self) -> bool {
+        return self.y == self.ghost_y;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -383,11 +387,41 @@ impl Game {
 
     // HACK: wait... two similar same name function for two separate structs?
     pub fn shift(&mut self, x: i8, y: i8) {
-        self.player.shift(x, y, &self.board);
+        let last_line = self.player.y;
+        let success = self.player.shift(x, y, &self.board);
+        let moved_down = last_line > self.player.y;
+        self.move_reset(success, moved_down);
     }
 
     // FIX: auto lock isn't working for 15+ movements
     pub fn rotate(&mut self, direction: Direction) {
-        self.player.rotate(direction, &self.board);
+        let last_line = self.player.y;
+        let success = self.player.rotate(direction, &self.board);
+        let moved_down = last_line > self.player.y;
+        self.move_reset(success, moved_down);
+    }
+
+    fn move_reset(&mut self, success: bool, move_down: bool) {
+        if self.last_touch.is_none() {
+            if self.player.is_bottom() {
+                self.last_touch = Some(Instant::now());
+            }
+        } else {
+            // Mino _was_ at bottom
+            if success {
+                // movment occured
+                self.canceled_drop += 1;
+                if self.player.is_bottom() {
+                    // still at bottom, reset timer
+                    self.last_touch = Some(Instant::now());
+                } else {
+                    // but not at bottom now, remove timer
+                    self.last_touch = None;
+                }
+            }
+        }
+        if move_down {
+            self.canceled_drop = 0;
+        }
     }
 }
