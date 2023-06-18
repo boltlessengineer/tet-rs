@@ -1,10 +1,22 @@
 # Tetries made with Rust
 
-# TODOs
+## TODOs
 
-- [ ] make sure 7-bag system works well (discord live)
-- [ ] make auto soft-drop (spawn new thread in loop)
-  - [ ] lock after 15 motions(from first hit) or 0.5s timeout
-- [ ] DAS/ARR support
-  - send all key press/release event to main
-  - if release event didn't occur less than `DAS_TIMEOUT`, run DAS motion (because it means keyboard is still pressed yet)
+- [ ] Basic Tetris features
+  - [x] basic Mino movements, rendering
+  - [x] SRS
+  - [ ] DAS movements
+    - [x] basic DAS & ARR
+    - [ ] handle when ARR == 0
+    - [ ] finnese support
+  - [x] Lock Delay
+  - [x] Infinity
+  - [ ] Gravity
+  - [ ] Soft Drop (using Gravity)
+- [ ] misc
+  - [ ] Score system
+  - [ ] TUI
+    - [ ] print scores
+    - [ ] effects :P
+  - [ ] Parse Config
+  - [ ] Other UI framework?
